@@ -10,4 +10,3 @@ void saxpySerial(int N,
         result[i] = scale * X[i] + Y[i];
     }
 }
-

@@ -26,4 +26,3 @@ void sqrtSerial(int N,
         output[i] = x * guess;
     }
 }
-

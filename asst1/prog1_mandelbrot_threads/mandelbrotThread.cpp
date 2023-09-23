@@ -93,4 +93,3 @@ void mandelbrotThread(
         workers[i].join();
     }
 }
-
