@@ -59,6 +59,34 @@ void workerThreadStart(WorkerArgs * const args) {
 }
 
 //
+// workerThreadStart --
+//
+// Thread entrypoint.
+void workerThreadStartBalance(WorkerArgs * const args) {
+
+    // 按照 height 分组对于 (-2, 2) (1, 1) 围成的 width x height 的矩形
+    // 按照 height 交错分配给每一个线程去执行
+    
+    double startTime = CycleTimer::currentSeconds();
+    int numRows =  (args->height + args->numThreads - 1) / args->numThreads;
+
+    for (int i = 0; i < numRows; ++i) {
+        unsigned int startRow = i * args->numThreads + args->threadId;
+        if (startRow >= args->height) {
+            break;
+        }
+        mandelbrotSerial(args->x0, args->y0, args->x1, args->y1,
+                    args->width, args->height, startRow, 1,
+                    args->maxIterations ,args->output);
+    }
+
+    double endTime = CycleTimer::currentSeconds();
+    double interval = endTime - startTime;
+    // 输出一下该线程执行时间
+    printf("[thread %d]:\t\t[%.3f] ms\n", args->threadId, interval * 1000);
+}
+
+//
 // MandelbrotThread --
 //
 // Multi-threaded implementation of mandelbrot set image generation.
@@ -103,10 +131,10 @@ void mandelbrotThread(
     // are created and the main application thread is used as a worker
     // as well.
     for (int i=1; i<numThreads; i++) {
-        workers[i] = std::thread(workerThreadStart, &args[i]);
+        workers[i] = std::thread(workerThreadStartBalance, &args[i]);
     }
 
-    workerThreadStart(&args[0]);
+    workerThreadStartBalance(&args[0]);
 
     // join worker threads
     for (int i=1; i<numThreads; i++) {
