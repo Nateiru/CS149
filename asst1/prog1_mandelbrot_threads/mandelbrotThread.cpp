@@ -34,8 +34,28 @@ void workerThreadStart(WorkerArgs * const args) {
     // to compute a part of the output image.  For example, in a
     // program that uses two threads, thread 0 could compute the top
     // half of the image and thread 1 could compute the bottom half.
+    
+    // 按照 height 分组对于 (-2, 2) (1, 1) 围成的 width x height 的矩形
+    // 按照 height 水平均匀切割分配给每一个线程去执行
+    
+    double startTime = CycleTimer::currentSeconds();
+    int numRows =  args->height / args->numThreads;
+    int remainRows = args->height % args->numThreads;
+    int startRow = args->threadId * numRows;
 
-    printf("Hello world from thread %d\n", args->threadId);
+    // 把最后几行分配给最后一个线程
+    if(args->threadId == args->numThreads - 1) {
+        numRows += remainRows;
+    }
+
+    mandelbrotSerial(args->x0, args->y0, args->x1, args->y1,
+                     args->width, args->height, startRow, numRows,
+                     args->maxIterations ,args->output);
+
+    double endTime = CycleTimer::currentSeconds();
+    double interval = endTime - startTime;
+    // 输出一下该线程执行时间
+    printf("[thread %d]:\t\t[%.3f] ms\n", args->threadId, interval * 1000);
 }
 
 //
@@ -75,7 +95,7 @@ void mandelbrotThread(
         args[i].maxIterations = maxIterations;
         args[i].numThreads = numThreads;
         args[i].output = output;
-      
+
         args[i].threadId = i;
     }
 
@@ -85,7 +105,7 @@ void mandelbrotThread(
     for (int i=1; i<numThreads; i++) {
         workers[i] = std::thread(workerThreadStart, &args[i]);
     }
-    
+
     workerThreadStart(&args[0]);
 
     // join worker threads

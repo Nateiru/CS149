@@ -121,7 +121,7 @@ int main(int argc, char** argv) {
 
     int* output_serial = new int[width*height];
     int* output_thread = new int[width*height];
-    
+
     //
     // Run the serial implementation.  Run the code three times and
     // take the minimum to get a good estimate.
@@ -145,13 +145,14 @@ int main(int argc, char** argv) {
 
     double minThread = 1e30;
     for (int i = 0; i < 5; ++i) {
+        printf("====================================\n");
       memset(output_thread, 0, width * height * sizeof(int));
         double startTime = CycleTimer::currentSeconds();
         mandelbrotThread(numThreads, x0, y0, x1, y1, width, height, maxIterations, output_thread);
         double endTime = CycleTimer::currentSeconds();
         minThread = std::min(minThread, endTime - startTime);
     }
-
+    printf("====================================\n");
     printf("[mandelbrot thread]:\t\t[%.3f] ms\n", minThread * 1000);
     writePPMImage(output_thread, width, height, "mandelbrot-thread.ppm", maxIterations);
 
