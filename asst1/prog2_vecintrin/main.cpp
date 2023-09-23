@@ -115,7 +115,7 @@ void initValue(float* values, int* exponents, float* output, float* gold, unsign
   for (unsigned int i=0; i<N+VECTOR_WIDTH; i++)
   {
     // random input values
-    values[i] = -1.f + 4.f * static_cast<float>(rand()) / RAND_MAX;
+    values[i] = -1.f + 4.f * static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
     exponents[i] = rand() % EXP_MAX;
     output[i] = 0.f;
     gold[i] = 0.f;
@@ -249,6 +249,45 @@ void clampedExpVector(float* values, int* exponents, float* output, int N) {
   // Your solution should work for any value of
   // N and VECTOR_WIDTH, not just when VECTOR_WIDTH divides N
   //
+
+  __cs149_vec_float x;
+  __cs149_vec_int y;
+
+  __cs149_vec_int zero_i = _cs149_vset_int(0);
+  __cs149_vec_float zero_f = _cs149_vset_float(0.f);
+  __cs149_vec_int one_i = _cs149_vset_int(1);
+  __cs149_vec_float max_f = _cs149_vset_float(9.999999f);
+
+  __cs149_vec_float result;
+  __cs149_mask maskAll, maskIsZero, maskIsNotZero, maskGtMax;
+
+  for (int i=0; i<N; i+=VECTOR_WIDTH) {
+    // All ones
+    maskAll = _cs149_init_ones();
+
+    _cs149_vload_float(x, values+i, maskAll);               // x = values[i];
+    _cs149_vload_int(y, exponents+i, maskAll);              // y = exponents[i];
+
+    _cs149_veq_int(maskIsZero, y, zero_i, maskAll);         // if (y == 0) {
+    _cs149_vset_float(result, 1.f, maskIsZero);             //    output[i] = 1.f
+    maskIsNotZero = _cs149_mask_not(maskIsZero);            // } else {
+
+    _cs149_vload_float(result, values+i, maskIsNotZero);    //    result = x;
+    _cs149_vsub_int(y, y, one_i, maskIsNotZero);            //    y = y - 1;
+    _cs149_vgt_int(maskIsNotZero, y, zero_i, maskIsNotZero);//    count = y - 1;
+
+    while (_cs149_cntbits(maskIsNotZero) > 0) {
+      _cs149_vmult_float(result, result, x, maskIsNotZero);
+      _cs149_vsub_int(y, y, one_i, maskIsNotZero);
+      _cs149_vgt_int(maskIsNotZero, y, zero_i, maskIsNotZero);
+    }
+
+    _cs149_vgt_float(maskGtMax, result, max_f, maskAll);
+    _cs149_vset_float(result, 9.999999f, maskGtMax);
+
+    // Write results back to memory
+    _cs149_vstore_float(output+i, result, maskAll);
+  }
   
 }
 
@@ -270,11 +309,32 @@ float arraySumVector(float* values, int N) {
   //
   // CS149 STUDENTS TODO: Implement your vectorized version of arraySumSerial here
   //
-  
-  for (int i=0; i<N; i+=VECTOR_WIDTH) {
 
+  // 1. 首先矢量把所有加值加起来复杂度 O(N / VECTOR_WIDTH )，比如 VECTOR_WIDTH = 4
+  //    比如 a[0], a[1], a[2], a[3]
+  //          +     +     +     +
+  //        a[4], a[5], a[6], a[7]
+  //          =     =     =     =
+  //        s[0], s[1], s[2], s[3]
+  __cs149_vec_float sum = _cs149_vset_float(0.f);
+  __cs149_vec_float num;
+  __cs149_mask maskAll = _cs149_init_ones();
+  for (int i=0; i<N; i+=VECTOR_WIDTH) {
+    _cs149_vload_float(num, values + i, maskAll);
+    _cs149_vadd_float(sum, sum, num, maskAll);
   }
 
-  return 0.0;
+  float ret[VECTOR_WIDTH] = {0.0};
+  // 2. 把 VECTOR_WIDTH 的数全部加起来 ret = s[0] + s[1] + s[2] + s[3]
+  //    此时相加的过程可以分治(奇偶分组相加) 复杂度只有 O{log(VECTOR_WIDTH)}
+
+  int number = VECTOR_WIDTH;
+  while (number /= 2) {
+    _cs149_hadd_float(sum, sum);
+    _cs149_interleave_float(sum, sum);
+  }
+
+  _cs149_vstore_float(ret, sum, maskAll);
+  return ret[0];
 }
 
