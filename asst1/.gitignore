@@ -5,6 +5,7 @@
 
 # .o in objs/
 **/objs/
+**/*.o
 
 # .clangd/
 **/.clangd/
