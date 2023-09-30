@@ -1,7 +1,5 @@
-#include <vector>
-#include <thread>
-
 #include "tasksys.h"
+#include <mutex>
 
 
 IRunnable::~IRunnable() {}
@@ -90,30 +88,75 @@ const char *TaskSystemParallelThreadPoolSpinning::name() {
   return "Parallel + Thread Pool + Spin";
 }
 
-TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(
-  int num_threads): ITaskSystem(num_threads) {
-  //
-  // TODO: CS149 student implementations may decide to perform setup
-  // operations (such as thread pool construction) here.
-  // Implementations are free to add new class member variables
-  // (requiring changes to tasksys.h).
-  //
+TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int num_threads)
+  : ITaskSystem(num_threads), num_threads_(num_threads) {
+  unsigned int init = 0x01;
+  for(int i = 0; i < num_threads_; ++i) {
+    bitmap_init_value_ |= init;
+    init <<= 1;
+  }
+  start();
 }
 
-TaskSystemParallelThreadPoolSpinning::~TaskSystemParallelThreadPoolSpinning() {}
+void TaskSystemParallelThreadPoolSpinning::start() {
+  threads_.resize(num_threads_);
+  for(int i = 0; i < num_threads_; ++i) {
+    threads_[i] = std::thread(&TaskSystemParallelThreadPoolSpinning::threadLoop, this, i);
+  }
+}
+
+void TaskSystemParallelThreadPoolSpinning::threadLoop(int i) {
+  for(;;) {
+    if (terminate_)
+      break; 
+    bool flag = false;
+    {
+      std::lock_guard<std::mutex> guard{mtx_};
+      flag = (jobs_ >> i) & 0x01;
+    }
+    if(flag) {
+      int taskId = i;
+      while(taskId < total_tasks_) {
+        runnable_->runTask(taskId, total_tasks_);
+        taskId += num_threads_;
+      }
+      {
+        std::lock_guard<std::mutex> guard{mtx_};
+        jobs_ &= ~(0x01 << i);
+      }
+    }
+  }
+}
+
+TaskSystemParallelThreadPoolSpinning::~TaskSystemParallelThreadPoolSpinning() {
+  /*
+    * Here, we don't need to synchronize the code, because
+    * the thread will never write `terminate`. No matter
+    * the thread may read some corrupted value, this doesn't matter.
+  */
+  terminate_ = true;
+  for(int i = 0; i < num_threads_; ++i) {
+    threads_[i].join();
+  }
+}
+
+bool TaskSystemParallelThreadPoolSpinning::busy() {
+  bool is_busy;
+  {
+    std::lock_guard<std::mutex> guard{mtx_};
+    is_busy = jobs_;
+  }
+  return is_busy;
+}
 
 void TaskSystemParallelThreadPoolSpinning::run(IRunnable *runnable, int num_total_tasks) {
-
-
-  //
-  // TODO: CS149 students will modify the implementation of this
-  // method in Part A.  The implementation provided below runs all
-  // tasks sequentially on the calling thread.
-  //
-
-  for (int i = 0; i < num_total_tasks; i++) {
-    runnable->runTask(i, num_total_tasks);
+  total_tasks_ = num_total_tasks;
+  runnable_ = runnable;
+  {
+    std::lock_guard<std::mutex> guard{mtx_};
+    jobs_ = bitmap_init_value_;
   }
+  while(busy());
 }
 
 TaskID TaskSystemParallelThreadPoolSpinning::runAsyncWithDeps(IRunnable *runnable,

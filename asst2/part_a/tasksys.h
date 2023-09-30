@@ -1,6 +1,10 @@
 #ifndef _TASKSYS_H
 #define _TASKSYS_H
 
+#include <mutex>
+#include <vector>
+#include <thread>
+
 #include "itasksys.h"
 
 /*
@@ -53,6 +57,18 @@ public:
   TaskID runAsyncWithDeps(IRunnable *runnable, int num_total_tasks,
                           const std::vector<TaskID> &deps);
   void sync();
+private:
+  int num_threads_;                       // to store the threads
+  std::vector<std::thread> threads_;      // thread poll
+  unsigned int jobs_ = 0x00;              // bitmap value for indicating whether there is a job
+  unsigned int bitmap_init_value_ = 0x00; // initialized bitmap value with 0x1111
+  IRunnable* runnable_;                   // we need to record the runnable
+  std::mutex mtx_;                        // the big lock
+  bool terminate_ = false;                // whether we should terminate the thread
+  int total_tasks_ = 0;                   // we should record the total task
+  void start();                           // start the thread pool
+  void threadLoop(int i);                 // thread functionaility
+  bool busy();                            // whether the threads are busy doing their jobs
 };
 
 /*
