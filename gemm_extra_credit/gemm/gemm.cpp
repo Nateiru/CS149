@@ -107,7 +107,7 @@ public:
   static void gemmUsingBlock(int m, int n, int k, double *A, double *B,
                              double *C, double alpha, double beta) {
     Point2D a{}, b{}, c{};
-    const int size = 6;
+    const int size = 8;
     for (int i = 0; i < m; i += size) {
       int mBlock = i + size < m ? size : m - i;
       // A(i, k) * B(k, j) -> A(i, j)
@@ -124,6 +124,44 @@ public:
           int kBlock = kk + size < k ? size : k - kk;
           matrixMultiplicationBlock(mBlock, nBlock, kBlock, n, k, a, b, c, A, B,
                                     C, alpha);
+        }
+      }
+    }
+  }
+
+  static void gemm(int m, int n, int k, double *A, double *B, double *C,
+                   double alpha, double beta) {
+    gemmUsingBlock(m, n, k, A, B, C, alpha, beta);
+  }
+};
+
+class GemmBlockIJK {
+public:
+  /**
+   * @brief Disable constructor
+   *
+   */
+  GemmBlockIJK() = delete;
+
+  /**
+   * @brief refer to https://csapp.cs.cmu.edu/public/waside/waside-blocking.pdf
+   *
+   */
+  static void gemmUsingBlock(int M, int N, int K, double *A, double *B,
+                             double *C, double alpha, double beta) {
+    const int size = 8;
+    for (int kk = 0; kk < K; kk += size) {
+      int kBlock = kk + size < K ? size : K - kk;
+      for (int jj = 0; jj < N; jj += size) {
+        int jBlock = jj + size < N ? size : N - jj;
+        for (int i = 0; i < M; i++) {
+          for (int j = jj; j < jj + jBlock; j++) {
+            double sum = C[i * M + j];
+            for (int k = kk; k < kk + kBlock; k++) {
+              sum += A[i * M + k] * B[K * k + j];
+            }
+            C[i * M + j] = sum;
+          }
         }
       }
     }
@@ -172,7 +210,7 @@ public:
   static void gemmUsingBlock(int m, int n, int k, double *A, double *B,
                              double *C, double alpha, double beta) {
     Point2D a{}, b{}, c{};
-    const int size = 6;
+    const int size = 8;
     for (int i = 0; i < m; i += size) {
       int mBlock = i + size < m ? size : m - i;
       a.i = i;
@@ -217,7 +255,10 @@ void gemm(int m, int n, int k, double *A, double *B, double *C, double alpha, do
   // SubMatrix Multiplication
   // GemmBlock::gemm(m, n, k, A, B, C, alpha, beta);
 
-  // SubMatrix Multiplication with B memory layout change
-  GemmBlockWithMemoryLayoutChange::gemm(m, n, k, A, B, C, alpha, beta);
-}
+  // SubMatrix Multiplication
+  GemmBlockIJK::gemm(m, n, k, A, B, C, alpha, beta);
 
+  // SubMatrix Multiplication with B memory layout change
+  // GemmBlockWithMemoryLayoutChange::gemm(m, n, k, A, B, C, alpha, beta);
+
+}
