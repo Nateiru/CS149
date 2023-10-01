@@ -36,7 +36,7 @@ dirs:
 		mkdir -p $(OBJDIR)/
 
 clean:
-		rm -rf $(OBJDIR) *.ppm *~ $(EXECUTABLE)
+		rm -rf $(OBJDIR) *.ppm *~ $(EXECUTABLE) hello
 
 $(EXECUTABLE): dirs $(OBJS)
 		$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS)
@@ -46,3 +46,6 @@ $(OBJDIR)/%.o: %.cpp
 
 $(OBJDIR)/%.o: %.cu
 		$(NVCC) $< $(NVCCFLAGS) -c -o $@
+
+hello: hello.cu
+	nvcc -O3 -o hello hello.cu
