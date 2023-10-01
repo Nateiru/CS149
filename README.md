@@ -14,7 +14,7 @@ like **CS149 PARALLEL COMPUTING**:
 - [x] Assignment 2: Scheduling Task Graphs on a Multi-Core CPU
 - [ ] Assignment 3: A Simple Renderer in CUDA
 - [ ] Assignment 4: Big Graph Processing in OpenMP
-- [ ] Extra Credit: Implement Matrix Multiplication as Fast as You Can
+- [x] Extra Credit: Implement Matrix Multiplication as Fast as You Can
 
 ## Written Assignments
 
