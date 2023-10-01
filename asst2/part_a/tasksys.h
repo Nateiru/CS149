@@ -2,8 +2,10 @@
 #define _TASKSYS_H
 
 #include <mutex>
+#include <queue>
 #include <vector>
 #include <thread>
+#include <condition_variable>
 
 #include "itasksys.h"
 
@@ -86,6 +88,24 @@ public:
   TaskID runAsyncWithDeps(IRunnable *runnable, int num_total_tasks,
                           const std::vector<TaskID> &deps);
   void sync();
+
+public:
+  using task_id_t = int;
+
+private:
+  int num_threads_{0};
+  std::vector<std::thread> threads_;
+  std::mutex mtx_;
+  std::queue<task_id_t> tasks_;
+  std::condition_variable not_empty_;
+  bool terminate_{false};
+
+  IRunnable* runnable_{nullptr};
+  int total_tasks_{0};
+  int completed_tasks_{0};
+  std::condition_variable completed_;
+
+  void threadLoop();
 };
 
 #endif
