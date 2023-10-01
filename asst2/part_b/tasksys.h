@@ -1,6 +1,7 @@
 #ifndef _TASKSYS_H
 #define _TASKSYS_H
 
+#include <memory>
 #include <mutex>
 #include <queue>
 #include <thread>
@@ -91,18 +92,18 @@ public:
 private:
   int num_threads_{0};
   std::vector<std::thread> threads_;
-  std::queue<Task *> ready_;            // ready_ 中的任务此时依赖的任务已经全部完成
-  std::unordered_set<Task *> block_;    // block_ 依赖任务没被完成暂时被阻塞
-  std::condition_variable not_empty_;   // 通知 ready_ 已经有任务能够执行
-  std::mutex mtx_;                      // 一把大锁保平安
-  std::condition_variable done_;        // 同步任务全部完成
-  TaskID id_{0};                        // 全局的任务 id 分配，从 0 开始
-  bool terminate_{false};               // 是否终止
+  std::queue<std::shared_ptr<Task>> ready_;            // ready_ 中的任务此时依赖的任务已经全部完成
+  std::unordered_set<std::shared_ptr<Task>> block_;    // block_ 依赖任务没被完成暂时被阻塞
+  std::condition_variable not_empty_;                  // 通知 ready_ 已经有任务能够执行
+  std::mutex mtx_;                                     // 一把大锁保平安
+  std::condition_variable done_;                       // 同步任务全部完成
+  TaskID id_{0};                                       // 全局的任务 id 分配，从 0 开始
+  bool terminate_{false};                              // 是否终止
 
   // 依赖关系图：哪些任务依赖于 task_id 
-  std::unordered_map<TaskID, std::unordered_set<Task *>> gdep_;
+  std::unordered_map<TaskID, std::unordered_set<std::shared_ptr<Task>>> gdep_;
   // 已经完成的任务，有可能任务 b 虽然依赖 a，但是 a 已经完成，此时需要注意任务 dep_cnt 的维护
-  std::unordered_map<TaskID, Task*> finished_;
+  std::unordered_set<TaskID> finished_;
   void threadLoop();
 };
 

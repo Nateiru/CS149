@@ -1,6 +1,4 @@
 #include "tasksys.h"
-#include "itasksys.h"
-#include <iostream>
 
 
 IRunnable::~IRunnable() {}
@@ -148,7 +146,7 @@ void TaskSystemParallelThreadPoolSleeping::threadLoop() {
     if (terminate_) {
       break;
     }
-    Task* task = ready_.front();
+    auto task = ready_.front();
     int stage = -1, finished = -1;
     {
       // 当前任务执行的阶段时 stage，进入下一阶段
@@ -177,7 +175,7 @@ void TaskSystemParallelThreadPoolSleeping::threadLoop() {
     // 2. 尝试唤醒 sync
     if (finished == task->total_tasks_) {
       lk.lock();
-      finished_[task->id_] =  task;
+      finished_.insert(task->id_);
 
       // 没有任务依赖当前完成的任务
       if(!gdep_.count(task->id_)) {
@@ -215,21 +213,6 @@ TaskSystemParallelThreadPoolSleeping::~TaskSystemParallelThreadPoolSleeping() {
   for(int i = 0; i < num_threads_; ++i) {
     threads_[i].join();
   }
-
-  // we need delete all task pointer that construct by `new`
-  for (auto task : finished_) {
-    delete task.second;
-  }
-
-  while (!ready_.empty()) {
-    delete ready_.front();
-    ready_.pop();
-  }
-
-  while (!block_.empty()) {
-    delete *block_.begin();
-    block_.erase(block_.begin());
-  }
 }
 
 void TaskSystemParallelThreadPoolSleeping::run(IRunnable *runnable, int num_total_tasks) {
@@ -251,8 +234,7 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable *runnabl
     }
   }
 
-  // TODO: replace new with std::shared_ptr 
-  Task* task = new Task(id_, runnable, num_total_tasks, dep_cnt);
+  auto task = std::make_shared<Task>(id_, runnable, num_total_tasks, dep_cnt);
 
   if (!task->dep_cnt_) {
     ready_.push(task);
@@ -263,7 +245,7 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable *runnabl
       if(gdep_.count(dep)) {
         gdep_[dep].insert(task);
       } else {
-        gdep_[dep] = std::unordered_set<Task*>{task};
+        gdep_[dep] = std::unordered_set<std::shared_ptr<Task>>{task};
       }
     }
     block_.insert(task);
