@@ -18,7 +18,7 @@ like **CS149 PARALLEL COMPUTING**:
 
 ## Written Assignments
 
-- [ ] Written Assignment 1
+- [x] Written Assignment 1
 - [ ] Written Assignment 2
 - [ ] Written Assignment 3
 - [ ] Written Assignment 4
