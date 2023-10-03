@@ -1,0 +1,20 @@
+# linux executable files
+*
+!*.*
+!*/
+
+# .o in objs/
+**/objs/
+**/*.o
+
+# .clangd/
+**/.clangd/
+
+# compile_commands.json in any directory
+**/compile_commands.json
+
+# ppm image
+**/*.ppm
+
+# data
+data
