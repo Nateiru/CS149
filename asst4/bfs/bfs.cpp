@@ -12,6 +12,8 @@
 #define ROOT_NODE_ID 0
 #define NOT_VISITED_MARKER -1
 
+#define MACHINE_CACHE_LINE_SIZE 64
+
 void vertex_set_clear(vertex_set *list) {
   list->count = 0;
 }
@@ -124,9 +126,9 @@ void bfs_top_down(Graph graph, solution *sol) {
   }
 }
 
-uint bottom_up_step(Graph g, bool* frontier, bool* new_frontier, int* distances) {
+uint bottom_up_step(Graph g, bool* frontier, bool* new_frontier, int* distances, int chunk_size) {
   uint count = 0;
-  #pragma omp parallel for reduction(+: count)
+  #pragma omp parallel for reduction(+: count) schedule(dynamic, chunk_size)
   for (int i = 0; i < g->num_nodes; ++i) {
     if (distances[i] == NOT_VISITED_MARKER) {
       for (const Vertex* incoming = incoming_begin(g, i); incoming != incoming_end(g, i); ++incoming) {
@@ -143,6 +145,15 @@ uint bottom_up_step(Graph g, bool* frontier, bool* new_frontier, int* distances)
 }
 
 void bfs_bottom_up(Graph graph, solution *sol) {
+
+  // We need to find the cache-line size
+  int chunk_size = MACHINE_CACHE_LINE_SIZE * 16;
+
+  // We need to find the chunk_size to fit into the cache line
+  while (graph->num_nodes < omp_get_max_threads() * chunk_size) {
+    chunk_size /= 2;
+  }
+
   bool *frontier = new bool[graph->num_nodes];
   bool *new_frontier = new bool[graph->num_nodes];
 
@@ -161,7 +172,7 @@ void bfs_bottom_up(Graph graph, solution *sol) {
 
   while (count != 0) {
     memset(new_frontier, 0, sizeof(bool) * graph->num_nodes);
-    count = bottom_up_step(graph, frontier, new_frontier, sol->distances);
+    count = bottom_up_step(graph, frontier, new_frontier, sol->distances, chunk_size);
     // Swap the pointer
     bool * temp = frontier;
     frontier = new_frontier;
