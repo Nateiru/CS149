@@ -124,18 +124,47 @@ void bfs_top_down(Graph graph, solution *sol) {
   }
 }
 
+void bottom_up_step(Graph g, vertex_set *frontier, int iteration, int* distances) {
+  uint count = 0;
+  #pragma omp parallel for reduction(+: count)
+  for (int i = 0; i < g->num_nodes; ++i) {
+    if (distances[i] == NOT_VISITED_MARKER) {
+      for (const Vertex* incoming = incoming_begin(g, i); incoming != incoming_end(g, i); ++incoming) {
+        if (frontier->vertices[*incoming] == iteration) {
+          distances[i] = distances[*incoming] + 1;
+          frontier->vertices[i] = iteration + 1;
+          count += 1;
+          break;
+        }
+      }
+    }
+  }
+  frontier->count = count;
+}
+
 void bfs_bottom_up(Graph graph, solution *sol) {
-  // CS149 students:
-  //
-  // You will need to implement the "bottom up" BFS here as
-  // described in the handout.
-  //
-  // As a result of your code's execution, sol.distances should be
-  // correctly populated for all nodes in the graph.
-  //
-  // As was done in the top-down case, you may wish to organize your
-  // code by creating subroutine bottom_up_step() that is called in
-  // each step of the BFS process.
+
+  vertex_set list;
+  vertex_set_init(&list, graph->num_nodes);
+  vertex_set* frontier = &list;
+
+  memset(frontier->vertices, -1, sizeof(int) * graph->num_nodes);
+
+  // initialize all nodes to NOT_VISITED
+  #pragma omp parallel for
+  for (int i=0; i<graph->num_nodes; i++)
+    sol->distances[i] = NOT_VISITED_MARKER;
+
+  // setup frontier with the root node
+  frontier->vertices[frontier->count++] = ROOT_NODE_ID;
+  sol->distances[ROOT_NODE_ID] = 0;
+
+  int iteration = 0;
+
+  while (frontier->count != 0) {
+    bottom_up_step(graph, frontier, iteration, sol->distances);
+    iteration++;
+  }
 }
 
 void bfs_hybrid(Graph graph, solution *sol) {
