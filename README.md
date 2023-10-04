@@ -30,7 +30,7 @@ The CMU 15-418/618 Parallelism Competition or Projects
 - [x] Assignment 1: Analyzing Parallel Program Performance on a Quad-Core CPU
 - [x] Assignment 2: Scheduling Task Graphs on a Multi-Core CPU
 - [ ] Assignment 3: A Simple Renderer in CUDA
-- [ ] Assignment 4: Big Graph Processing in OpenMP
+- [x] Assignment 4: Big Graph Processing in OpenMP
 - [x] Extra Credit: Implement Matrix Multiplication as Fast as You Can
 
 ## Written Assignments
