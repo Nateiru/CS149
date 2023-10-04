@@ -124,47 +124,52 @@ void bfs_top_down(Graph graph, solution *sol) {
   }
 }
 
-void bottom_up_step(Graph g, vertex_set *frontier, int iteration, int* distances) {
+uint bottom_up_step(Graph g, bool* frontier, bool* new_frontier, int* distances) {
   uint count = 0;
   #pragma omp parallel for reduction(+: count)
   for (int i = 0; i < g->num_nodes; ++i) {
     if (distances[i] == NOT_VISITED_MARKER) {
       for (const Vertex* incoming = incoming_begin(g, i); incoming != incoming_end(g, i); ++incoming) {
-        if (frontier->vertices[*incoming] == iteration) {
+        if (frontier[*incoming]) {
           distances[i] = distances[*incoming] + 1;
-          frontier->vertices[i] = iteration + 1;
+          new_frontier[i] = true;
           count += 1;
           break;
         }
       }
     }
   }
-  frontier->count = count;
+  return count;
 }
 
 void bfs_bottom_up(Graph graph, solution *sol) {
+  bool *frontier = new bool[graph->num_nodes];
+  bool *new_frontier = new bool[graph->num_nodes];
 
-  vertex_set list;
-  vertex_set_init(&list, graph->num_nodes);
-  vertex_set* frontier = &list;
+  memset(frontier, 0, sizeof(bool) * graph->num_nodes);
 
-  memset(frontier->vertices, -1, sizeof(int) * graph->num_nodes);
+  // Set for the root node
+  frontier[ROOT_NODE_ID] = true;
 
-  // initialize all nodes to NOT_VISITED
   #pragma omp parallel for
+  // initialize all nodes to NOT_VISITED
   for (int i=0; i<graph->num_nodes; i++)
     sol->distances[i] = NOT_VISITED_MARKER;
-
-  // setup frontier with the root node
-  frontier->vertices[frontier->count++] = ROOT_NODE_ID;
   sol->distances[ROOT_NODE_ID] = 0;
 
-  int iteration = 0;
+  uint count = 1;
 
-  while (frontier->count != 0) {
-    bottom_up_step(graph, frontier, iteration, sol->distances);
-    iteration++;
+  while (count != 0) {
+    memset(new_frontier, 0, sizeof(bool) * graph->num_nodes);
+    count = bottom_up_step(graph, frontier, new_frontier, sol->distances);
+    // Swap the pointer
+    bool * temp = frontier;
+    frontier = new_frontier;
+    new_frontier = temp;
   }
+
+  delete [] frontier;
+  delete [] new_frontier;
 }
 
 void bfs_hybrid(Graph graph, solution *sol) {
