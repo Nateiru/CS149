@@ -6,6 +6,7 @@
 #endif
 
 #include "circleRenderer.h"
+#include <cstdint>           // uint8_t
 
 
 class CudaRenderer : public CircleRenderer {
@@ -26,6 +27,8 @@ private:
     float* cudaDeviceColor;
     float* cudaDeviceRadius;
     float* cudaDeviceImageData;
+    float* cudaDeviceRenderData;
+    uint8_t* cudaDevicePixelMask;
 
 public:
 
@@ -45,6 +48,10 @@ public:
     void advanceAnimation();
 
     void render();
+
+    void renderByMask();
+
+    void renderByTwoDimensionalCUDA();
 
     void shadePixel(
         int circleIndex,
