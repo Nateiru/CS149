@@ -14,6 +14,28 @@
 
 #define THREADS_PER_BLOCK 256
 
+// Here, we do the operation in-place.
+__global__ void scan_kernel_upsweep(int N, int two_d, int two_dplus1, int* result) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < N) {
+        result[(index + 1) * two_dplus1 - 1] += result[index * two_dplus1 + two_d - 1];
+    }
+}
+
+// Here, we do the operation in-place.
+__global__ void scan_kernel_downsweep(int N, int two_d, int two_dplus1, int* result) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < N) {
+        int temp = result[index * two_dplus1 + two_d - 1];
+        result[index * two_dplus1 + two_d - 1] = result[(index + 1) * two_dplus1 - 1];
+        result[(index + 1) * two_dplus1 - 1] += temp;
+    }
+}
+
+// It may seem ugly, but it works.
+__global__ void scan_set_zero_kernel(int N, int *result) {
+    result[N - 1] = 0;
+}
 
 // helper function to round an integer up to the next power of 2
 static inline int nextPow2(int n) {
@@ -44,17 +66,36 @@ static inline int nextPow2(int n) {
 // places it in result
 void exclusive_scan(int* input, int N, int* result)
 {
+    int rounded_length = nextPow2(N);
+    for(int two_d = 1; two_d <= rounded_length / 2; two_d *= 2) {
+        int two_dplus1= 2 * two_d;
+        // Here, we should calculate the total task number we need
+        int totalTaskNum = (rounded_length + two_dplus1 - 1) / two_dplus1;
 
-    // CS149 TODO:
-    //
-    // Implement your exclusive scan implementation here.  Keep input
-    // mind that although the arguments to this function are device
-    // allocated arrays, this is a function that is running in a thread
-    // on the CPU.  Your implementation will need to make multiple calls
-    // to CUDA kernel functions (that you must write) to implement the
-    // scan.
+        // Thus, we could calculate the block we need.
+        int blocks = (totalTaskNum + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
+        scan_kernel_upsweep<<<blocks, THREADS_PER_BLOCK>>>(totalTaskNum, two_d, two_dplus1, result);
+        cudaDeviceSynchronize();
+    }
 
+	// Here, I don't know how to find a good way
+    // to set the result[N - 1] = 0. So I use
+    // a simple way.
+    scan_set_zero_kernel<<<1,1>>>(rounded_length, result);
+    cudaDeviceSynchronize();
+
+    for(int two_d = rounded_length / 2; two_d >= 1; two_d /= 2) {
+        int two_dplus1= 2 * two_d;
+        // Here, we should calculate the total task number we need
+        int totalTaskNum = (rounded_length + two_dplus1 - 1) / two_dplus1;
+
+        // Thus, we could calculate the block we need.
+        int blocks = (totalTaskNum + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+
+        scan_kernel_downsweep<<<blocks, THREADS_PER_BLOCK>>>(totalTaskNum, two_d, two_dplus1, result);
+        cudaDeviceSynchronize();
+    }
 }
 
 

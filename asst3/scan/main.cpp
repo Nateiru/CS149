@@ -141,7 +141,7 @@ int main(int argc, char** argv) {
         }  
     }
 
-    printCudaInfo();
+    // printCudaInfo();
 
     double cudaTime = 50000.;
 
