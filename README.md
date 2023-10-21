@@ -8,13 +8,16 @@ like **CS149 PARALLEL COMPUTING**:
 + [Bilibili](https://www.bilibili.com/video/BV16k4y1z7z9)
 + [Panopto](https://scs.hosted.panopto.com/Panopto/Pages/Sessions/List.aspx#folderID=%22f62c2297-de88-4e63-aff2-06641fa25e98%22)
 
+Although the lecture of 2013 is very old, the **Further Reading** in it is very valuable, which is not included in the lectures of recent years
+- [**「Lecture」** CMU15-418 Spring 2013](http://15418.courses.cs.cmu.edu/spring2013/explain)
+
 When I was writing Assignments independently, I came across exercises from different years (not limited to CS149-Fall21). These exercises are valuable for us to practice and reinforce the knowledge we have learned.
 
-What a pity there is no solution!
+~What a pity there is no solution!~
 
-- [CMU15-418 Spring 2015](http://15418.courses.cs.cmu.edu/spring2015/exercises)
-- [CMU15-418 Spring 2016](http://15418.courses.cs.cmu.edu/spring2016/exercises)
-- [CMU15-418 Spring 2017](http://15418.courses.cs.cmu.edu/spring2017/exercises)
+- [**「Assignment」** CMU15-418 Spring 2015](http://15418.courses.cs.cmu.edu/spring2015/exercises)
+- [**「Assignment」** CMU15-418 Spring 2016](http://15418.courses.cs.cmu.edu/spring2016/exercises)
+- [**「Assignment」** CMU15-418 Spring 2017](http://15418.courses.cs.cmu.edu/spring2017/exercises)
 
 The CMU 15-418/618 Parallelism Competition or Projects
 
