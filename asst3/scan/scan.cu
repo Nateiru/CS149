@@ -181,6 +181,23 @@ double cudaScanThrust(int* inarray, int* end, int* resultarray) {
     return overallDuration; 
 }
 
+__global__ void find_repeats_compare(int *input, int *output, int N) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < N - 1) {
+        output[index] = input[index] == input[index + 1] ? 1 : 0;
+    }
+}
+
+__global__ void gather_kernel(int* exclusive_scan_results, int* output, const int N, int* total_count) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < N - 1) {
+        if (exclusive_scan_results[index] != exclusive_scan_results[index + 1]) {
+            output[exclusive_scan_results[index]] = index;
+        }
+    } else if (index == N - 1) {
+        *total_count = exclusive_scan_results[N - 1];
+    }
+}
 
 // find_repeats --
 //
@@ -190,19 +207,33 @@ double cudaScanThrust(int* inarray, int* end, int* resultarray) {
 // Returns the total number of pairs found
 int find_repeats(int* device_input, int length, int* device_output) {
 
-    // CS149 TODO:
-    //
-    // Implement this function. You will probably want to
-    // make use of one or more calls to exclusive_scan(), as well as
-    // additional CUDA kernel launches.
-    //    
-    // Note: As in the scan code, the calling code ensures that
-    // allocated arrays are a power of 2 in size, so you can use your
-    // exclusive_scan function with them. However, your implementation
-    // must ensure that the results of find_repeats are correct given
-    // the actual array length.
+    // The problem is that how should we use `prefix_sum` to solve
+    // the `find_repeats` problem. It is tricky, you should look at
+    // the code carefully.
 
-    return 0; 
+    const int rounded_length = nextPow2(length);
+    int blocks = rounded_length % THREADS_PER_BLOCK ? rounded_length / THREADS_PER_BLOCK + 1
+                                                    : rounded_length / THREADS_PER_BLOCK;
+
+    int* temp;
+    cudaMalloc(&temp, rounded_length * sizeof(int));
+    find_repeats_compare<<<blocks, THREADS_PER_BLOCK>>>(device_input, temp, length);
+
+    // exclusive scan on indicator array
+    // to get device_exclusive_scan_results
+    exclusive_scan(temp, length, temp);
+
+    // get repetition points in array    
+    int* device_repetition_count;
+    cudaMalloc(&device_repetition_count, sizeof(int));
+    gather_kernel<<<blocks, THREADS_PER_BLOCK>>>(temp, device_output, length, device_repetition_count);
+    cudaFree(temp);
+
+    // return results
+    int output_length;
+    cudaMemcpy(&output_length, device_repetition_count, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaFree(device_repetition_count);
+    return output_length;
 }
 
 
