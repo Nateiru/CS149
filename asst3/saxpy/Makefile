@@ -44,7 +44,7 @@ $(EXECUTABLE): dirs $(OBJS)
 $(OBJDIR)/%.o: %.cpp
 		$(CXX) $< $(CXXFLAGS) -c -o $@
 
-$(OBJDIR)/%.o: %.cu
+$(OBJDIR)/%.o: saxpy.cu
 		$(NVCC) $< $(NVCCFLAGS) -c -o $@
 
 hello: hello.cu

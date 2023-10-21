@@ -53,7 +53,7 @@ int main(int argc, char** argv)
         resultarray[i] = 0.f;
     }
 
-    printCudaInfo();
+    // printCudaInfo();
     
     printf("Running 3 timing tests:\n");
     for (int i=0; i<3; i++) {
