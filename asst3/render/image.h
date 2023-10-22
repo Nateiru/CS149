@@ -23,9 +23,10 @@ struct Image {
         }
     }
 
-    int width;
-    int height;
-    float* data;
+    int width;   // 宽度
+    int height;  // 高度
+    float* data; // 像素 [(r, g, b, alpha), (r, g, b, alpha), ......]
+                 // 一共 width × height 个像素点、每个像素点 4 个 float
 };
 
 

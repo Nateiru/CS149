@@ -453,16 +453,16 @@ __global__ void kernelRenderPixels() {
     int size = bytesPerPixel * index;
     uint8_t* pixelMask = &cuConstRendererParams.pixelMask[size];
     for (int i = 0; i < numCircles; ++i) {
-      int bitmapBytesIndex = i / 8;
-      int bitmapBytesPos = i % 8;
-      float4* renderPtr = (float4*)(&cuConstRendererParams.renderData[i * 4]);
-      uint8_t* pixel = pixelMask + bitmapBytesIndex;
-      if (((*pixel) >> bitmapBytesPos) & 0x01 == 0x01) {
-          color.x = (*renderPtr).w * (*renderPtr).x + (1 - (*renderPtr).w) * color.x;
-          color.y = (*renderPtr).w * (*renderPtr).y + (1 - (*renderPtr).w) * color.y;
-          color.z = (*renderPtr).w * (*renderPtr).z + (1 - (*renderPtr).w) * color.z;
-          color.w += (*renderPtr).w;
-      }
+        int bitmapBytesIndex = i / 8;
+        int bitmapBytesPos = i % 8;
+        float4* renderPtr = (float4*)(&cuConstRendererParams.renderData[i * 4]);
+        uint8_t* pixel = pixelMask + bitmapBytesIndex;
+        if (((*pixel) >> bitmapBytesPos) & 0x01) {
+            color.x = (*renderPtr).w * (*renderPtr).x + (1 - (*renderPtr).w) * color.x;
+            color.y = (*renderPtr).w * (*renderPtr).y + (1 - (*renderPtr).w) * color.y;
+            color.z = (*renderPtr).w * (*renderPtr).z + (1 - (*renderPtr).w) * color.z;
+            color.w += (*renderPtr).w;
+        }
     }
     *imagePtr = color;
 }
