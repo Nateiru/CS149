@@ -31,8 +31,6 @@ struct GlobalConstants {
     int imageWidth;
     int imageHeight;
     float* imageData;
-    float* renderData;
-    uint8_t* pixelMask;
 };
 
 // Global variable that is in scope, but read-only, for all cuda
@@ -320,7 +318,7 @@ __global__ void kernelAdvanceSnowflake() {
 // pixel from the circle.  Update of the image is done in this
 // function.  Called by kernelRenderCircles()
 __device__ __inline__ void
-recordInformationForPixel(int circleIndex, float2 pixelCenter, float3 p, uint8_t* pixelMask, int bitmapBytesPos) {
+shadePixel(int circleIndex, float2 pixelCenter, float3 p, float4* imagePtr) {
 
     float diffX = p.x - pixelCenter.x;
     float diffY = p.y - pixelCenter.y;
@@ -363,15 +361,22 @@ recordInformationForPixel(int circleIndex, float2 pixelCenter, float3 p, uint8_t
         alpha = .5f;
     }
 
-    float4* renderPtr = (float4*)(&cuConstRendererParams.renderData[circleIndex * 4]);
-    float4 color;
-    color.x = rgb.x;
-    color.y = rgb.y;
-    color.z = rgb.z;
-    color.w = alpha;
-    *renderPtr = color;
+    float oneMinusAlpha = 1.f - alpha;
 
-    *pixelMask = (*pixelMask) | (0x01 << bitmapBytesPos);
+    // BEGIN SHOULD-BE-ATOMIC REGION
+    // global memory read
+
+    float4 existingColor = *imagePtr;
+    float4 newColor;
+    newColor.x = alpha * rgb.x + oneMinusAlpha * existingColor.x;
+    newColor.y = alpha * rgb.y + oneMinusAlpha * existingColor.y;
+    newColor.z = alpha * rgb.z + oneMinusAlpha * existingColor.z;
+    newColor.w = alpha + existingColor.w;
+
+    // global memory write
+    *imagePtr = newColor;
+
+    // END SHOULD-BE-ATOMIC REGION
 }
 
 // kernelRenderCircles -- (CUDA device code)
@@ -411,60 +416,15 @@ __global__ void kernelRenderCircles() {
     float invHeight = 1.f / imageHeight;
 
     // for all pixels in the bonding box
-
-	int numCircles = cuConstRendererParams.numCircles;
-    int bytesPerPixel = numCircles % 8 ? numCircles / 8 + 1: numCircles / 8;
-    int bitmapBytesIndex = index / 8;
-    int bitmapBytesPos = index % 8;
-
     for (int pixelY=screenMinY; pixelY<screenMaxY; pixelY++) {
+        float4* imgPtr = (float4*)(&cuConstRendererParams.imageData[4 * (pixelY * imageWidth + screenMinX)]);
         for (int pixelX=screenMinX; pixelX<screenMaxX; pixelX++) {
-            // ! size may overflow
-            int size = bytesPerPixel*(pixelY * imageWidth + pixelX);
-            uint8_t* pixelMask = &cuConstRendererParams.pixelMask[size] + bitmapBytesIndex;
             float2 pixelCenterNorm = make_float2(invWidth * (static_cast<float>(pixelX) + 0.5f),
                                                  invHeight * (static_cast<float>(pixelY) + 0.5f));
-            recordInformationForPixel(index, pixelCenterNorm, p, pixelMask, bitmapBytesPos);
+            shadePixel(index, pixelCenterNorm, p, imgPtr);
+            imgPtr++;
         }
     }
-}
-
-// kernelRenderPixels -- (CUDA device code)
-//
-// Each thread renders a pixel. The code will deal with each pixel
-// so that we could render it.
-__global__ void kernelRenderPixels() {
-
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= cuConstRendererParams.imageWidth * cuConstRendererParams.imageHeight) {
-        return;
-    }
-
-    int numCircles = cuConstRendererParams.numCircles;
-    float4* imagePtr = (float4*)(&cuConstRendererParams.imageData[index * 4]);
-    float4 color;
-    color.x = (*imagePtr).x;
-    color.y = (*imagePtr).y;
-    color.z = (*imagePtr).z;
-    color.w = (*imagePtr).w;
-    int bytesPerPixel = numCircles % 8 ? numCircles / 8 + 1: numCircles / 8;
-
-    // ! The size may overflow
-    int size = bytesPerPixel * index;
-    uint8_t* pixelMask = &cuConstRendererParams.pixelMask[size];
-    for (int i = 0; i < numCircles; ++i) {
-        int bitmapBytesIndex = i / 8;
-        int bitmapBytesPos = i % 8;
-        float4* renderPtr = (float4*)(&cuConstRendererParams.renderData[i * 4]);
-        uint8_t* pixel = pixelMask + bitmapBytesIndex;
-        if (((*pixel) >> bitmapBytesPos) & 0x01) {
-            color.x = (*renderPtr).w * (*renderPtr).x + (1 - (*renderPtr).w) * color.x;
-            color.y = (*renderPtr).w * (*renderPtr).y + (1 - (*renderPtr).w) * color.y;
-            color.z = (*renderPtr).w * (*renderPtr).z + (1 - (*renderPtr).w) * color.z;
-            color.w += (*renderPtr).w;
-        }
-    }
-    *imagePtr = color;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -484,8 +444,6 @@ CudaRenderer::CudaRenderer() {
     cudaDeviceColor = NULL;
     cudaDeviceRadius = NULL;
     cudaDeviceImageData = NULL;
-    cudaDeviceRenderData = NULL;
-    cudaDevicePixelMask = NULL;
 }
 
 CudaRenderer::~CudaRenderer() {
@@ -535,25 +493,25 @@ CudaRenderer::loadScene(SceneName scene) {
 void
 CudaRenderer::setup() {
 
-    // int deviceCount = 0;
-    // std::string name;
-    // cudaError_t err = cudaGetDeviceCount(&deviceCount);
+    int deviceCount = 0;
+    std::string name;
+    cudaError_t err = cudaGetDeviceCount(&deviceCount);
 
-    // printf("---------------------------------------------------------\n");
-    // printf("Initializing CUDA for CudaRenderer\n");
-    // printf("Found %d CUDA devices\n", deviceCount);
+    printf("---------------------------------------------------------\n");
+    printf("Initializing CUDA for CudaRenderer\n");
+    printf("Found %d CUDA devices\n", deviceCount);
 
-    // for (int i=0; i<deviceCount; i++) {
-    //     cudaDeviceProp deviceProps;
-    //     cudaGetDeviceProperties(&deviceProps, i);
-    //     name = deviceProps.name;
+    for (int i=0; i<deviceCount; i++) {
+        cudaDeviceProp deviceProps;
+        cudaGetDeviceProperties(&deviceProps, i);
+        name = deviceProps.name;
 
-    //     printf("Device %d: %s\n", i, deviceProps.name);
-    //     printf("   SMs:        %d\n", deviceProps.multiProcessorCount);
-    //     printf("   Global mem: %.0f MB\n", static_cast<float>(deviceProps.totalGlobalMem) / (1024 * 1024));
-    //     printf("   CUDA Cap:   %d.%d\n", deviceProps.major, deviceProps.minor);
-    // }
-    // printf("---------------------------------------------------------\n");
+        printf("Device %d: %s\n", i, deviceProps.name);
+        printf("   SMs:        %d\n", deviceProps.multiProcessorCount);
+        printf("   Global mem: %.0f MB\n", static_cast<float>(deviceProps.totalGlobalMem) / (1024 * 1024));
+        printf("   CUDA Cap:   %d.%d\n", deviceProps.major, deviceProps.minor);
+    }
+    printf("---------------------------------------------------------\n");
     
     // By this time the scene should be loaded.  Now copy all the key
     // data structures into device memory so they are accessible to
@@ -567,14 +525,6 @@ CudaRenderer::setup() {
     cudaMalloc(&cudaDeviceColor, sizeof(float) * 3 * numCircles);
     cudaMalloc(&cudaDeviceRadius, sizeof(float) * numCircles);
     cudaMalloc(&cudaDeviceImageData, sizeof(float) * 4 * image->width * image->height);
-    cudaMalloc(&cudaDeviceRenderData, sizeof(float) * 4 * numCircles);
-    uint bytesPerPixel = numCircles % 8 ? numCircles / 8 + 1: numCircles / 8;
-    int size = image->width * image->height * bytesPerPixel;
-    cudaError_t error = cudaMalloc(&cudaDevicePixelMask, size);
-    if (error != cudaSuccess) {
-      printf("%s", cudaGetErrorString(error));
-    }
-    cudaMemset(&cudaDevicePixelMask, 0,image->width * image->height * bytesPerPixel);
 
     cudaMemcpy(cudaDevicePosition, position, sizeof(float) * 3 * numCircles, cudaMemcpyHostToDevice);
     cudaMemcpy(cudaDeviceVelocity, velocity, sizeof(float) * 3 * numCircles, cudaMemcpyHostToDevice);
@@ -599,8 +549,6 @@ CudaRenderer::setup() {
     params.color = cudaDeviceColor;
     params.radius = cudaDeviceRadius;
     params.imageData = cudaDeviceImageData;
-	params.renderData = cudaDeviceRenderData;
-    params.pixelMask = cudaDevicePixelMask;
 
     cudaMemcpyToSymbol(cuConstRendererParams, &params, sizeof(GlobalConstants));
 
@@ -685,27 +633,13 @@ CudaRenderer::advanceAnimation() {
     cudaDeviceSynchronize();
 }
 
-/**
- * renderByMask first restores the information which circle has contributed
- * to each pixel. All the operations can be executed parallelly. After that
- * one could use `exclusive_scan` to do the operation. However, I do not
- * use `exclusive_scan` just use `for`. The idea is more important. Although
- * we have stored so many states.
- */
 void
-CudaRenderer::renderByMask() {
+CudaRenderer::render() {
+
+    // 256 threads per block is a healthy number
     dim3 blockDim(256, 1);
     dim3 gridDim((numCircles + blockDim.x - 1) / blockDim.x);
 
     kernelRenderCircles<<<gridDim, blockDim>>>();
     cudaDeviceSynchronize();
-
-    dim3 anotherGridDim((image->width * image->height + blockDim.x - 1) / blockDim.x);
-    kernelRenderPixels<<<anotherGridDim, blockDim>>>();
-    cudaDeviceSynchronize();
-}
-
-void
-CudaRenderer::render() {
-    renderByMask();
 }
